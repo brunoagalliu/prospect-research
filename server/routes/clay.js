@@ -1,6 +1,7 @@
 const express = require('express');
 const { pool } = require('../db');
 const clay = require('../services/clay');
+const { refreshHiringSignals } = require('../services/hiringSignal');
 const router = express.Router();
 
 // Live field catalog + query grammar for Clay's search DSL. Costs no search quota.
@@ -8,6 +9,17 @@ router.get('/search/reference', async (req, res, next) => {
   try {
     const reference = await clay.getQueryReference();
     res.json({ reference });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Also run automatically on a schedule (see index.js) -- exposed here too so it can be
+// triggered on demand without waiting for the next scheduled run.
+router.post('/refresh-hiring-signals', async (req, res, next) => {
+  try {
+    const result = await refreshHiringSignals();
+    res.json(result);
   } catch (err) {
     next(err);
   }

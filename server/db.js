@@ -42,6 +42,10 @@ async function init() {
     -- Lets webhook imports (e.g. Clay) upsert by domain instead of creating duplicates.
     CREATE UNIQUE INDEX IF NOT EXISTS companies_domain_unique ON companies(domain) WHERE domain IS NOT NULL;
 
+    -- Hiring-signal job postings decay fast (a posting >30 days old is likely stale) --
+    -- this tracks when we last actually checked, since hiring_signal alone can't say.
+    ALTER TABLE companies ADD COLUMN IF NOT EXISTS hiring_signal_checked_at TIMESTAMP;
+
     CREATE TABLE IF NOT EXISTS prospects (
       id           SERIAL PRIMARY KEY,
       name         TEXT NOT NULL,

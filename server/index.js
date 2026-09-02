@@ -5,6 +5,7 @@ const path = require('path');
 const jwt = require('jsonwebtoken');
 
 const { init: initDb } = require('./db');
+const { refreshHiringSignals } = require('./services/hiringSignal');
 const authRouter = require('./routes/auth');
 const prospectsRouter = require('./routes/prospects');
 const companiesRouter = require('./routes/companies');
@@ -66,9 +67,21 @@ app.use((err, req, res, next) => {
   res.status(status).json({ message: err.response?.data?.message || err.message || 'Internal server error.' });
 });
 
+const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+
+function runHiringSignalRefresh() {
+  refreshHiringSignals()
+    .then((result) => console.log('Hiring signal refresh:', result))
+    .catch((err) => console.error('Hiring signal refresh failed:', err.message));
+}
+
 initDb()
   .then(() => {
     app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));
+    // Hiring-signal postings decay within ~30 days, so this needs to be a recurring
+    // check, not a one-time pull. Runs once shortly after boot, then daily.
+    setTimeout(runHiringSignalRefresh, 60 * 1000);
+    setInterval(runHiringSignalRefresh, ONE_DAY_MS);
   })
   .catch((err) => {
     console.error('DB init failed:', err.message);
