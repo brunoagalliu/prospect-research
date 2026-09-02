@@ -7,6 +7,7 @@ const jwt = require('jsonwebtoken');
 const { init: initDb } = require('./db');
 const authRouter = require('./routes/auth');
 const prospectsRouter = require('./routes/prospects');
+const companiesRouter = require('./routes/companies');
 const webhooksRouter = require('./routes/webhooks');
 
 const app = express();
@@ -39,6 +40,7 @@ app.use('/api', (req, res, next) => {
 });
 
 app.use('/api/prospects', prospectsRouter);
+app.use('/api/companies', companiesRouter);
 app.use('/api/webhooks', webhooksRouter);
 
 // Serve React build in production
