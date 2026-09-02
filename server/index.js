@@ -9,6 +9,7 @@ const authRouter = require('./routes/auth');
 const prospectsRouter = require('./routes/prospects');
 const companiesRouter = require('./routes/companies');
 const webhooksRouter = require('./routes/webhooks');
+const clayRouter = require('./routes/clay');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -42,6 +43,7 @@ app.use('/api', (req, res, next) => {
 app.use('/api/prospects', prospectsRouter);
 app.use('/api/companies', companiesRouter);
 app.use('/api/webhooks', webhooksRouter);
+app.use('/api/clay', clayRouter);
 
 // Serve React build in production
 if (process.env.NODE_ENV === 'production') {
@@ -50,6 +52,12 @@ if (process.env.NODE_ENV === 'production') {
     res.sendFile(path.join(__dirname, '../client/dist/index.html'));
   });
 }
+
+app.use((err, req, res, next) => {
+  console.error(err);
+  const status = err.response?.status && err.response.status < 500 ? err.response.status : 500;
+  res.status(status).json({ message: err.response?.data?.message || err.message || 'Internal server error.' });
+});
 
 initDb()
   .then(() => {
