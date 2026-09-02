@@ -15,8 +15,13 @@ function client() {
 
 // Up to 10 people per call. `matches` is positionally aligned with `details` --
 // index i of the response corresponds to index i of the request, with `null` for a miss.
-async function bulkMatch(details) {
-  const { data } = await client().post('/people/bulk_match', { details });
+async function bulkMatch(details, { revealPhoneNumber = false, webhookUrl } = {}) {
+  const body = { details };
+  if (revealPhoneNumber) {
+    body.reveal_phone_number = true;
+    body.webhook_url = webhookUrl;
+  }
+  const { data } = await client().post('/people/bulk_match', body);
   return data;
 }
 

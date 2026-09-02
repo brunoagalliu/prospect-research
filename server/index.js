@@ -11,6 +11,7 @@ const companiesRouter = require('./routes/companies');
 const webhooksRouter = require('./routes/webhooks');
 const clayRouter = require('./routes/clay');
 const apolloRouter = require('./routes/apollo');
+const apolloWebhookRouter = require('./routes/apolloWebhook');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -24,6 +25,10 @@ app.use(express.json());
 
 // Public — login endpoint
 app.use('/api/auth', authRouter);
+
+// Public — Apollo's async phone-reveal callback. Not under /api: Apollo can't send our
+// X-API-Key/JWT, so it's authenticated via a shared-secret token in the URL instead.
+app.use('/webhooks', apolloWebhookRouter);
 
 // Auth middleware — accepts JWT (dashboard) or API key (external tools)
 app.use('/api', (req, res, next) => {

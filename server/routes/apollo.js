@@ -41,6 +41,7 @@ router.post('/enrich-contacts', async (req, res, next) => {
           email: match?.email || null,
           email_status: match?.email_status || null,
           linkedin_url: match?.linkedin_url || null,
+          apollo_person_id: match?.id || null,
         });
       });
     }
@@ -54,13 +55,71 @@ router.post('/enrich-contacts', async (req, res, next) => {
     for (const result of results) {
       if (!result.matched) continue;
       await pool.query(
-        `UPDATE prospects SET email = $1, linkedin_url = COALESCE(linkedin_url, $2), updated_at = NOW() WHERE id = $3`,
-        [result.email, result.linkedin_url, result.id]
+        `UPDATE prospects SET email = $1, linkedin_url = COALESCE(linkedin_url, $2), apollo_person_id = COALESCE($3, apollo_person_id), updated_at = NOW() WHERE id = $4`,
+        [result.email, result.linkedin_url, result.apollo_person_id, result.id]
       );
       updated += 1;
     }
 
     res.json({ dry_run: false, checked: contacts.length, matched: updated, credits_consumed: creditsConsumed, results });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Requests phone numbers for prospects with a linked company but no phone yet.
+// Apollo delivers phone numbers ASYNCHRONOUSLY to a webhook (see /webhooks/apollo-phone
+// in index.js) -- this route just kicks off the request and records apollo_person_id
+// so the webhook callback can find the right row later. dry_run makes no Apollo call
+// at all (unlike enrich-contacts) since a real phone request costs credits up front,
+// before any result is known.
+router.post('/enrich-phones', async (req, res, next) => {
+  try {
+    const { limit = 20, dry_run = true } = req.body;
+
+    const { rows: contacts } = await pool.query(
+      `SELECT p.id, p.name, p.company_id, c.domain
+       FROM prospects p
+       JOIN companies c ON c.id = p.company_id
+       WHERE p.phone IS NULL AND c.domain IS NOT NULL
+       ORDER BY p.id
+       LIMIT $1`,
+      [limit]
+    );
+
+    if (dry_run) {
+      return res.json({ dry_run: true, would_request: contacts.length, contacts: contacts.map((c) => ({ id: c.id, name: c.name, company_id: c.company_id })) });
+    }
+
+    if (!process.env.APOLLO_WEBHOOK_SECRET) {
+      return res.status(500).json({ message: 'APOLLO_WEBHOOK_SECRET is not set.' });
+    }
+    if (!process.env.RAILWAY_PUBLIC_DOMAIN) {
+      return res.status(500).json({ message: 'RAILWAY_PUBLIC_DOMAIN is not set -- cannot build a public webhook URL.' });
+    }
+    const webhookUrl = `https://${process.env.RAILWAY_PUBLIC_DOMAIN}/webhooks/apollo-phone?token=${process.env.APOLLO_WEBHOOK_SECRET}`;
+
+    let requested = 0;
+    let creditsConsumed = 0;
+
+    for (let i = 0; i < contacts.length; i += BATCH_SIZE) {
+      const batch = contacts.slice(i, i + BATCH_SIZE);
+      const details = batch.map((c) => ({ name: c.name, domain: c.domain }));
+      const response = await apollo.bulkMatch(details, { revealPhoneNumber: true, webhookUrl });
+      creditsConsumed += response.credits_consumed || 0;
+
+      for (let idx = 0; idx < batch.length; idx += 1) {
+        const match = response.matches[idx];
+        if (!match?.id) continue;
+        await pool.query(
+          `UPDATE prospects SET apollo_person_id = $1, updated_at = NOW() WHERE id = $2`,
+          [match.id, batch[idx].id]
+        );
+        requested += 1;
+      }
+    }
+
+    res.json({ dry_run: false, checked: contacts.length, requested, credits_consumed: creditsConsumed, note: 'Phone numbers arrive asynchronously via webhook -- check back shortly.' });
   } catch (err) {
     next(err);
   }

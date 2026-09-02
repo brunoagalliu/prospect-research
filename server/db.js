@@ -59,10 +59,13 @@ async function init() {
     -- Added after the initial launch — existing deployments need these backfilled onto the table.
     ALTER TABLE prospects ADD COLUMN IF NOT EXISTS company_id INTEGER REFERENCES companies(id) ON DELETE SET NULL;
     ALTER TABLE prospects ADD COLUMN IF NOT EXISTS phone TEXT;
+    -- Correlates Apollo's async phone-reveal webhook callback back to the right row.
+    ALTER TABLE prospects ADD COLUMN IF NOT EXISTS apollo_person_id TEXT;
 
-    CREATE INDEX IF NOT EXISTS prospects_status     ON prospects(status);
-    CREATE INDEX IF NOT EXISTS prospects_company    ON prospects(company);
-    CREATE INDEX IF NOT EXISTS prospects_company_id ON prospects(company_id);
+    CREATE INDEX IF NOT EXISTS prospects_status           ON prospects(status);
+    CREATE INDEX IF NOT EXISTS prospects_company          ON prospects(company);
+    CREATE INDEX IF NOT EXISTS prospects_company_id       ON prospects(company_id);
+    CREATE INDEX IF NOT EXISTS prospects_apollo_person_id ON prospects(apollo_person_id);
 
     -- Lets webhook imports (e.g. Clay) upsert by email instead of creating duplicates.
     CREATE UNIQUE INDEX IF NOT EXISTS prospects_email_unique ON prospects(email) WHERE email IS NOT NULL;
