@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
+import { useSort } from '../lib/sort';
+import SortableHeader from '../components/SortableHeader';
 
 export default function Prospects() {
   const [q, setQ] = useState('');
@@ -11,6 +13,8 @@ export default function Prospects() {
     queryKey: ['prospects', q],
     queryFn: () => api(`/prospects${q ? `?q=${encodeURIComponent(q)}` : ''}`),
   });
+
+  const { sorted: sortedProspects, sortKey, sortDir, toggleSort } = useSort(prospects);
 
   const createMutation = useMutation({
     mutationFn: (body) => api('/prospects', { method: 'POST', body }),
@@ -74,17 +78,28 @@ export default function Prospects() {
           <table className="min-w-full divide-y divide-gray-200 text-sm">
             <thead className="bg-gray-50 text-left text-xs font-medium uppercase text-gray-500">
               <tr>
-                <th className="px-4 py-2">Name</th>
-                <th className="px-4 py-2">Company</th>
-                <th className="px-4 py-2">Title</th>
-                <th className="px-4 py-2">Company tier</th>
-                <th className="px-4 py-2">Hiring signal</th>
-                <th className="px-4 py-2">Status</th>
-                <th className="px-4 py-2">Source</th>
+                {[
+                  ['name', 'Name'],
+                  ['company', 'Company'],
+                  ['title', 'Title'],
+                  ['company_tier', 'Company tier'],
+                  ['hiring_signal', 'Hiring signal'],
+                  ['status', 'Status'],
+                  ['source', 'Source'],
+                ].map(([key, label]) => (
+                  <SortableHeader
+                    key={key}
+                    sortKey={key}
+                    label={label}
+                    currentKey={sortKey}
+                    currentDir={sortDir}
+                    onSort={toggleSort}
+                  />
+                ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {prospects?.map((p) => (
+              {sortedProspects?.map((p) => (
                 <tr key={p.id}>
                   <td className="px-4 py-2 font-medium">{p.name}</td>
                   <td className="px-4 py-2">{p.company}</td>

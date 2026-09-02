@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
+import { useSort } from '../lib/sort';
+import SortableHeader from '../components/SortableHeader';
 
 export default function Companies() {
   const [q, setQ] = useState('');
@@ -19,6 +21,8 @@ export default function Companies() {
     queryKey: ['companies', q, tier, status],
     queryFn: () => api(`/companies${qs ? `?${qs}` : ''}`),
   });
+
+  const { sorted: sortedCompanies, sortKey, sortDir, toggleSort } = useSort(companies);
 
   return (
     <div className="mx-auto max-w-7xl p-6">
@@ -60,21 +64,32 @@ export default function Companies() {
           <table className="min-w-full divide-y divide-gray-200 text-sm">
             <thead className="bg-gray-50 text-left text-xs font-medium uppercase text-gray-500">
               <tr>
-                <th className="px-4 py-2">Name</th>
-                <th className="px-4 py-2">Industry</th>
-                <th className="px-4 py-2">Employees</th>
-                <th className="px-4 py-2">Location</th>
-                <th className="px-4 py-2">Marketing HC</th>
-                <th className="px-4 py-2">Ops hire?</th>
-                <th className="px-4 py-2">Hiring signal</th>
-                <th className="px-4 py-2">Tier</th>
-                <th className="px-4 py-2">Score</th>
-                <th className="px-4 py-2">Status</th>
-                <th className="px-4 py-2">Source</th>
+                {[
+                  ['name', 'Name'],
+                  ['industry', 'Industry'],
+                  ['employee_count', 'Employees'],
+                  ['location', 'Location'],
+                  ['marketing_headcount', 'Marketing HC'],
+                  ['has_ops_hire', 'Ops hire?'],
+                  ['hiring_signal', 'Hiring signal'],
+                  ['tier', 'Tier'],
+                  ['score', 'Score'],
+                  ['status', 'Status'],
+                  ['source', 'Source'],
+                ].map(([key, label]) => (
+                  <SortableHeader
+                    key={key}
+                    sortKey={key}
+                    label={label}
+                    currentKey={sortKey}
+                    currentDir={sortDir}
+                    onSort={toggleSort}
+                  />
+                ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {companies?.map((c) => (
+              {sortedCompanies?.map((c) => (
                 <tr
                   key={c.id}
                   className="cursor-pointer hover:bg-gray-50"
