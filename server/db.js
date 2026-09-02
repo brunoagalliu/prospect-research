@@ -23,6 +23,9 @@ async function init() {
 
     CREATE INDEX IF NOT EXISTS prospects_status  ON prospects(status);
     CREATE INDEX IF NOT EXISTS prospects_company ON prospects(company);
+
+    -- Lets webhook imports (e.g. Clay) upsert by email instead of creating duplicates.
+    CREATE UNIQUE INDEX IF NOT EXISTS prospects_email_unique ON prospects(email) WHERE email IS NOT NULL;
   `);
 }
 

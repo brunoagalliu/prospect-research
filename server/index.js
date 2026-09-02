@@ -7,6 +7,7 @@ const jwt = require('jsonwebtoken');
 const { init: initDb } = require('./db');
 const authRouter = require('./routes/auth');
 const prospectsRouter = require('./routes/prospects');
+const webhooksRouter = require('./routes/webhooks');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -38,6 +39,7 @@ app.use('/api', (req, res, next) => {
 });
 
 app.use('/api/prospects', prospectsRouter);
+app.use('/api/webhooks', webhooksRouter);
 
 // Serve React build in production
 if (process.env.NODE_ENV === 'production') {
