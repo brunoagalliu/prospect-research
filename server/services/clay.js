@@ -30,18 +30,29 @@ async function runSearch(searchId, limit = 100) {
 }
 
 // Pages through a query-mode search until has_more is false or maxResults is hit.
-async function searchAll(query, { pageSize = 100, maxResults = 100 } = {}) {
+// Clay's iterator can return an empty page with has_more still true (results not
+// ready yet) -- tolerate a few of those before concluding the search is exhausted,
+// so we don't give up on real results, but cap it so a genuinely-empty search
+// doesn't spin forever burning quota.
+async function searchAll(query, { pageSize = 100, maxResults = 100, maxEmptyPages = 4 } = {}) {
   const { search_id: searchId } = await createSearch(query);
   const results = [];
   let hasMore = true;
   let periodQuota = null;
+  let consecutiveEmptyPages = 0;
 
-  while (hasMore && results.length < maxResults) {
+  while (hasMore && results.length < maxResults && consecutiveEmptyPages < maxEmptyPages) {
     const remaining = maxResults - results.length;
     const page = await runSearch(searchId, Math.min(pageSize, remaining));
-    results.push(...page.data);
-    hasMore = page.has_more;
     periodQuota = page.period_quota;
+    hasMore = page.has_more;
+
+    if (page.data.length === 0) {
+      consecutiveEmptyPages += 1;
+      continue;
+    }
+    consecutiveEmptyPages = 0;
+    results.push(...page.data);
   }
 
   return { results, periodQuota };

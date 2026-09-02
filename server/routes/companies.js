@@ -110,6 +110,24 @@ router.put('/:id', async (req, res) => {
   res.json(rows[0]);
 });
 
+// Bulk-tags tier only, leaving every other column untouched -- unlike PUT /:id, which
+// requires the full field set since only a few columns are COALESCE-protected there.
+router.post('/bulk-tier', async (req, res, next) => {
+  try {
+    const { ids, tier } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ message: 'ids must be a non-empty array.' });
+    if (![1, 2, 3].includes(tier)) return res.status(400).json({ message: 'tier must be 1, 2, or 3.' });
+
+    const { rowCount } = await pool.query(
+      `UPDATE companies SET tier = $1, updated_at = NOW() WHERE id = ANY($2)`,
+      [tier, ids]
+    );
+    res.json({ updated: rowCount });
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.delete('/:id', async (req, res) => {
   const { rowCount } = await pool.query('DELETE FROM companies WHERE id = $1', [req.params.id]);
   if (!rowCount) return res.status(404).json({ message: 'Not found.' });

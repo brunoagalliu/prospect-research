@@ -80,4 +80,80 @@ async function runClaySearch(req, res) {
   res.json({ dry_run: false, count: companies.length, inserted: inserted.length, period_quota: periodQuota, companies: inserted });
 }
 
+const DEFAULT_BUYING_COMMITTEE_TITLES = [
+  'CEO', 'Founder', 'Head of Marketing', 'VP Marketing',
+  'Head of Growth', 'VP Sales', 'Head of Sales', 'CRO',
+];
+
+function escapeQueryString(value) {
+  return String(value).replace(/"/g, '\\"');
+}
+
+// Finds buying-committee people (name/title/current company only -- Clay Search has no
+// email or phone data) for companies that don't have any contacts linked yet, and links
+// each contact to its company via company_id (queried one company at a time so the
+// mapping is unambiguous -- batched results don't expose which input domain matched).
+router.post('/search/contacts', async (req, res, next) => {
+  try {
+    const {
+      titles = DEFAULT_BUYING_COMMITTEE_TITLES,
+      max_per_company = 2,
+      limit_companies = 10,
+      dry_run = true,
+    } = req.body;
+
+    const { rows: companies } = await pool.query(
+      `SELECT c.id, c.name, c.domain FROM companies c
+       WHERE c.domain IS NOT NULL
+         AND NOT EXISTS (SELECT 1 FROM prospects p WHERE p.company_id = c.id)
+       ORDER BY c.id
+       LIMIT $1`,
+      [limit_companies]
+    );
+
+    const titleList = titles.map((t) => `"${escapeQueryString(t)}"`).join(', ');
+    const results = [];
+    let periodQuota = null;
+
+    for (const company of companies) {
+      const query = `select from people where clay.filter_to_companies(("${escapeQueryString(company.domain)}")) and experiences.any(is_current = true and job_title is_similar_to (${titleList}))`;
+      const { results: people, periodQuota: quota } = await clay.searchAll(query, {
+        pageSize: max_per_company,
+        maxResults: max_per_company,
+      });
+      periodQuota = quota;
+
+      for (const person of people) {
+        const experience = person.matched_experiences?.[0];
+        results.push({
+          name: person.name,
+          title: experience?.title || null,
+          company: company.name,
+          company_id: company.id,
+          location: person.location?.name || null,
+        });
+      }
+    }
+
+    if (dry_run) {
+      return res.json({ dry_run: true, companies_checked: companies.length, count: results.length, period_quota: periodQuota, contacts: results });
+    }
+
+    const inserted = [];
+    for (const contact of results) {
+      const { rows } = await pool.query(
+        `INSERT INTO prospects (name, title, company, company_id, source, status)
+         VALUES ($1, $2, $3, $4, 'Clay', 'new')
+         RETURNING *`,
+        [contact.name, contact.title, contact.company, contact.company_id]
+      );
+      inserted.push(rows[0]);
+    }
+
+    res.json({ dry_run: false, companies_checked: companies.length, count: results.length, inserted: inserted.length, period_quota: periodQuota, contacts: inserted });
+  } catch (err) {
+    next(err);
+  }
+});
+
 module.exports = router;
