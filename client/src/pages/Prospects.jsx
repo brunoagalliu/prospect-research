@@ -1,13 +1,11 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, setToken } from '../api';
-import { useNavigate } from 'react-router-dom';
+import { api } from '../api';
 
 export default function Prospects() {
   const [q, setQ] = useState('');
   const [showForm, setShowForm] = useState(false);
   const queryClient = useQueryClient();
-  const navigate = useNavigate();
 
   const { data: prospects, isLoading } = useQuery({
     queryKey: ['prospects', q],
@@ -21,11 +19,6 @@ export default function Prospects() {
       setShowForm(false);
     },
   });
-
-  function handleLogout() {
-    setToken(null);
-    navigate('/login');
-  }
 
   function handleCreate(e) {
     e.preventDefault();
@@ -43,15 +36,10 @@ export default function Prospects() {
   return (
     <div className="mx-auto max-w-4xl p-6">
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Prospects</h1>
-        <div className="flex gap-2">
-          <button className="btn-primary" onClick={() => setShowForm((s) => !s)}>
-            {showForm ? 'Cancel' : 'Add prospect'}
-          </button>
-          <button className="text-sm text-gray-500 hover:text-gray-700" onClick={handleLogout}>
-            Log out
-          </button>
-        </div>
+        <h1 className="text-xl font-semibold">Contacts</h1>
+        <button className="btn-primary" onClick={() => setShowForm((s) => !s)}>
+          {showForm ? 'Cancel' : 'Add contact'}
+        </button>
       </div>
 
       {showForm && (
