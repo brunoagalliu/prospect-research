@@ -10,6 +10,7 @@ const prospectsRouter = require('./routes/prospects');
 const companiesRouter = require('./routes/companies');
 const webhooksRouter = require('./routes/webhooks');
 const clayRouter = require('./routes/clay');
+const apolloRouter = require('./routes/apollo');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -44,6 +45,7 @@ app.use('/api/prospects', prospectsRouter);
 app.use('/api/companies', companiesRouter);
 app.use('/api/webhooks', webhooksRouter);
 app.use('/api/clay', clayRouter);
+app.use('/api/apollo', apolloRouter);
 
 // Serve React build in production
 if (process.env.NODE_ENV === 'production') {
