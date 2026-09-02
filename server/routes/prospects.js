@@ -9,20 +9,24 @@ router.get('/', async (req, res) => {
 
   if (status) {
     params.push(status);
-    conditions.push(`status = $${params.length}`);
+    conditions.push(`p.status = $${params.length}`);
   }
   if (company_id) {
     params.push(company_id);
-    conditions.push(`company_id = $${params.length}`);
+    conditions.push(`p.company_id = $${params.length}`);
   }
   if (q) {
     params.push(`%${q}%`);
-    conditions.push(`(name ILIKE $${params.length} OR company ILIKE $${params.length})`);
+    conditions.push(`(p.name ILIKE $${params.length} OR p.company ILIKE $${params.length})`);
   }
 
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
   const { rows } = await pool.query(
-    `SELECT * FROM prospects ${where} ORDER BY created_at DESC`,
+    `SELECT p.*, c.tier AS company_tier, c.hiring_signal, c.hiring_signal_titles
+     FROM prospects p
+     LEFT JOIN companies c ON c.id = p.company_id
+     ${where}
+     ORDER BY p.created_at DESC`,
     params
   );
   res.json(rows);

@@ -34,7 +34,7 @@ export default function Prospects() {
   }
 
   return (
-    <div className="mx-auto max-w-4xl p-6">
+    <div className="mx-auto max-w-6xl p-6">
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-xl font-semibold">Contacts</h1>
         <button className="btn-primary" onClick={() => setShowForm((s) => !s)}>
@@ -70,13 +70,15 @@ export default function Prospects() {
       ) : prospects?.length === 0 ? (
         <p className="text-sm text-gray-500">No prospects yet.</p>
       ) : (
-        <div className="overflow-hidden rounded-lg bg-white shadow-sm">
+        <div className="overflow-x-auto rounded-lg bg-white shadow-sm">
           <table className="min-w-full divide-y divide-gray-200 text-sm">
             <thead className="bg-gray-50 text-left text-xs font-medium uppercase text-gray-500">
               <tr>
                 <th className="px-4 py-2">Name</th>
                 <th className="px-4 py-2">Company</th>
                 <th className="px-4 py-2">Title</th>
+                <th className="px-4 py-2">Company tier</th>
+                <th className="px-4 py-2">Hiring signal</th>
                 <th className="px-4 py-2">Status</th>
                 <th className="px-4 py-2">Source</th>
               </tr>
@@ -87,6 +89,16 @@ export default function Prospects() {
                   <td className="px-4 py-2 font-medium">{p.name}</td>
                   <td className="px-4 py-2">{p.company}</td>
                   <td className="px-4 py-2">{p.title}</td>
+                  <td className="px-4 py-2">{p.company_tier ? `Tier ${p.company_tier}` : '—'}</td>
+                  <td className="px-4 py-2">
+                    {p.hiring_signal ? (
+                      <span title={p.hiring_signal_titles || ''} className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
+                        Yes{p.hiring_signal_titles ? ` — ${p.hiring_signal_titles}` : ''}
+                      </span>
+                    ) : (
+                      'No'
+                    )}
+                  </td>
                   <td className="px-4 py-2">{p.status}</td>
                   <td className="px-4 py-2">{p.source}</td>
                 </tr>
