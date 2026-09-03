@@ -168,4 +168,58 @@ router.post('/search/contacts', async (req, res, next) => {
   }
 });
 
+// Backfills marketing_headcount by counting current marketing-titled people per company
+// via Clay Search. Clay's people.count(...) aggregate is filter-only (it's what selected
+// these companies into the 1-3 band originally) and never returns the actual number, so
+// this counts real matching people directly, one company at a time -- same phrase
+// ("marketing") used in the original sourcing query, for consistency. Capped at
+// max_count; a company that hits the cap may have more than max_count in reality.
+router.post('/search/marketing-headcount', async (req, res, next) => {
+  try {
+    const { limit_companies = 20, max_count = 10, dry_run = true } = req.body;
+
+    const { rows: companies } = await pool.query(
+      `SELECT id, name, domain FROM companies
+       WHERE domain IS NOT NULL AND marketing_headcount IS NULL
+       ORDER BY id
+       LIMIT $1`,
+      [limit_companies]
+    );
+
+    const results = [];
+    let periodQuota = null;
+
+    for (const company of companies) {
+      const query = `select from people where clay.filter_to_companies(("${escapeQueryString(company.domain)}")) and experiences.any(is_current = true and job_title is_similar_to ("marketing"))`;
+      const { results: people, periodQuota: quota } = await clay.searchAll(query, {
+        pageSize: max_count,
+        maxResults: max_count,
+      });
+      periodQuota = quota;
+
+      results.push({
+        id: company.id,
+        name: company.name,
+        marketing_headcount: people.length,
+        hit_cap: people.length >= max_count,
+      });
+    }
+
+    if (dry_run) {
+      return res.json({ dry_run: true, checked: companies.length, period_quota: periodQuota, results });
+    }
+
+    for (const result of results) {
+      await pool.query(
+        `UPDATE companies SET marketing_headcount = $1, updated_at = NOW() WHERE id = $2`,
+        [result.marketing_headcount, result.id]
+      );
+    }
+
+    res.json({ dry_run: false, checked: companies.length, period_quota: periodQuota, results });
+  } catch (err) {
+    next(err);
+  }
+});
+
 module.exports = router;
