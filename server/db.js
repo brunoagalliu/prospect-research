@@ -45,6 +45,9 @@ async function init() {
     -- Hiring-signal job postings decay fast (a posting >30 days old is likely stale) --
     -- this tracks when we last actually checked, since hiring_signal alone can't say.
     ALTER TABLE companies ADD COLUMN IF NOT EXISTS hiring_signal_checked_at TIMESTAMP;
+    -- Tracks the synced HubSpot record so re-syncing updates in place instead of
+    -- relying solely on the domain search (domain isn't a unique property in HubSpot).
+    ALTER TABLE companies ADD COLUMN IF NOT EXISTS hubspot_id TEXT;
 
     CREATE TABLE IF NOT EXISTS prospects (
       id           SERIAL PRIMARY KEY,
@@ -65,6 +68,7 @@ async function init() {
     ALTER TABLE prospects ADD COLUMN IF NOT EXISTS phone TEXT;
     -- Correlates Apollo's async phone-reveal webhook callback back to the right row.
     ALTER TABLE prospects ADD COLUMN IF NOT EXISTS apollo_person_id TEXT;
+    ALTER TABLE prospects ADD COLUMN IF NOT EXISTS hubspot_id TEXT;
 
     CREATE INDEX IF NOT EXISTS prospects_status           ON prospects(status);
     CREATE INDEX IF NOT EXISTS prospects_company          ON prospects(company);

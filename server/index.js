@@ -13,6 +13,7 @@ const webhooksRouter = require('./routes/webhooks');
 const clayRouter = require('./routes/clay');
 const apolloRouter = require('./routes/apollo');
 const apolloWebhookRouter = require('./routes/apolloWebhook');
+const hubspotRouter = require('./routes/hubspot');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -52,6 +53,7 @@ app.use('/api/companies', companiesRouter);
 app.use('/api/webhooks', webhooksRouter);
 app.use('/api/clay', clayRouter);
 app.use('/api/apollo', apolloRouter);
+app.use('/api/hubspot', hubspotRouter);
 
 // Serve React build in production
 if (process.env.NODE_ENV === 'production') {
