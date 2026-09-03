@@ -5,7 +5,7 @@ const path = require('path');
 const jwt = require('jsonwebtoken');
 
 const { init: initDb } = require('./db');
-const { refreshHiringSignals } = require('./services/hiringSignal');
+const { runDailyPipeline } = require('./services/pipeline');
 const authRouter = require('./routes/auth');
 const prospectsRouter = require('./routes/prospects');
 const companiesRouter = require('./routes/companies');
@@ -14,6 +14,7 @@ const clayRouter = require('./routes/clay');
 const apolloRouter = require('./routes/apollo');
 const apolloWebhookRouter = require('./routes/apolloWebhook');
 const hubspotRouter = require('./routes/hubspot');
+const pipelineRouter = require('./routes/pipeline');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -54,6 +55,7 @@ app.use('/api/webhooks', webhooksRouter);
 app.use('/api/clay', clayRouter);
 app.use('/api/apollo', apolloRouter);
 app.use('/api/hubspot', hubspotRouter);
+app.use('/api/pipeline', pipelineRouter);
 
 // Serve React build in production
 if (process.env.NODE_ENV === 'production') {
@@ -71,19 +73,19 @@ app.use((err, req, res, next) => {
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
-function runHiringSignalRefresh() {
-  refreshHiringSignals()
-    .then((result) => console.log('Hiring signal refresh:', result))
-    .catch((err) => console.error('Hiring signal refresh failed:', err.message));
+function runScheduledPipeline() {
+  runDailyPipeline()
+    .then((result) => console.log('Daily pipeline:', JSON.stringify(result)))
+    .catch((err) => console.error('Daily pipeline failed:', err.message));
 }
 
 initDb()
   .then(() => {
     app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));
-    // Hiring-signal postings decay within ~30 days, so this needs to be a recurring
-    // check, not a one-time pull. Runs once shortly after boot, then daily.
-    setTimeout(runHiringSignalRefresh, 60 * 1000);
-    setInterval(runHiringSignalRefresh, ONE_DAY_MS);
+    // Sources ~10 new companies/day and pushes them through enrichment, scoring,
+    // contact-finding, and HubSpot sync -- runs once shortly after boot, then daily.
+    setTimeout(runScheduledPipeline, 60 * 1000);
+    setInterval(runScheduledPipeline, ONE_DAY_MS);
   })
   .catch((err) => {
     console.error('DB init failed:', err.message);

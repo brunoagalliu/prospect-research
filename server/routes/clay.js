@@ -44,52 +44,23 @@ async function runClaySearch(req, res) {
     maxResults: max_results,
   });
 
-  const companies = results.map((c) => {
-    const notesParts = [];
-    if (c.size) notesParts.push(`size: ${c.size}`);
-    if (c.annual_revenue) notesParts.push(`revenue: ${c.annual_revenue}`);
-    if (c.total_funding_amount_range_usd) notesParts.push(`funding: ~$${Number(c.total_funding_amount_range_usd).toLocaleString()}`);
-
-    return {
+  if (dry_run) {
+    const preview = results.map((c) => ({
       name: c.name,
       domain: c.domain ? String(c.domain).trim().toLowerCase() : null,
-      website: c.domain ? `https://${c.domain}` : null,
-      linkedin_url: c.linkedin_url || null,
       industry: c.industry || null,
       location: c.location || null,
-      total_raised: c.total_funding_amount_range_usd || null,
-      notes: notesParts.join('; ') || null,
-    };
-  });
-
-  if (dry_run) {
-    return res.json({ dry_run: true, count: companies.length, period_quota: periodQuota, companies });
+    }));
+    return res.json({ dry_run: true, count: preview.length, period_quota: periodQuota, companies: preview });
   }
 
   const inserted = [];
-  for (const company of companies) {
-    if (!company.name) continue;
-
-    const { rows } = await pool.query(
-      `INSERT INTO companies (name, domain, website, linkedin_url, industry, location, total_raised, notes, source, status)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'Clay','new')
-       ON CONFLICT (domain) WHERE domain IS NOT NULL DO UPDATE SET
-         name         = EXCLUDED.name,
-         website      = EXCLUDED.website,
-         linkedin_url = EXCLUDED.linkedin_url,
-         industry     = EXCLUDED.industry,
-         location     = EXCLUDED.location,
-         total_raised = EXCLUDED.total_raised,
-         notes        = EXCLUDED.notes,
-         updated_at   = NOW()
-       RETURNING *`,
-      [company.name, company.domain, company.website, company.linkedin_url,
-       company.industry, company.location, company.total_raised, company.notes]
-    );
-    inserted.push(rows[0]);
+  for (const c of results) {
+    const row = await clay.upsertCompanyFromClayResult(c);
+    if (row) inserted.push(row);
   }
 
-  res.json({ dry_run: false, count: companies.length, inserted: inserted.length, period_quota: periodQuota, companies: inserted });
+  res.json({ dry_run: false, count: results.length, inserted: inserted.length, period_quota: periodQuota, companies: inserted });
 }
 
 const DEFAULT_BUYING_COMMITTEE_TITLES = [
@@ -97,9 +68,7 @@ const DEFAULT_BUYING_COMMITTEE_TITLES = [
   'Head of Growth', 'VP Sales', 'Head of Sales', 'CRO',
 ];
 
-function escapeQueryString(value) {
-  return String(value).replace(/"/g, '\\"');
-}
+const { escapeQueryString } = clay;
 
 // Finds buying-committee people (name/title/current company only -- Clay Search has no
 // email or phone data) for companies that don't have any contacts linked yet, and links

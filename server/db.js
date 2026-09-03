@@ -77,6 +77,14 @@ async function init() {
 
     -- Lets webhook imports (e.g. Clay) upsert by email instead of creating duplicates.
     CREATE UNIQUE INDEX IF NOT EXISTS prospects_email_unique ON prospects(email) WHERE email IS NOT NULL;
+
+    -- Small key-value store for pipeline automation state (e.g. the Clay search_id
+    -- being paged through for daily sourcing, so we advance through fresh results
+    -- instead of re-fetching the same companies or embedding a growing exclusion list).
+    CREATE TABLE IF NOT EXISTS pipeline_state (
+      key   TEXT PRIMARY KEY,
+      value TEXT
+    );
   `);
 }
 
