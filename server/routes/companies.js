@@ -1,5 +1,6 @@
 const express = require('express');
 const { pool } = require('../db');
+const { computeScore } = require('../services/scoring');
 const router = express.Router();
 
 router.get('/', async (req, res) => {
@@ -108,6 +109,30 @@ router.put('/:id', async (req, res) => {
   );
   if (!rows[0]) return res.status(404).json({ message: 'Not found.' });
   res.json(rows[0]);
+});
+
+// Recomputes score for every company from currently-stored data -- pure computation,
+// no external API calls, so it's cheap to re-run any time the formula or underlying
+// data changes. dry_run previews the distribution without writing.
+router.post('/recompute-scores', async (req, res, next) => {
+  try {
+    const { dry_run = true } = req.body;
+    const { rows: companies } = await pool.query('SELECT * FROM companies');
+
+    const results = companies.map((c) => ({ id: c.id, name: c.name, tier: c.tier, score: computeScore(c) }));
+
+    if (dry_run) {
+      const sorted = [...results].sort((a, b) => b.score - a.score);
+      return res.json({ dry_run: true, checked: results.length, top: sorted.slice(0, 10), bottom: sorted.slice(-10) });
+    }
+
+    for (const r of results) {
+      await pool.query('UPDATE companies SET score = $1, updated_at = NOW() WHERE id = $2', [r.score, r.id]);
+    }
+    res.json({ dry_run: false, updated: results.length });
+  } catch (err) {
+    next(err);
+  }
 });
 
 // Bulk-tags tier only, leaving every other column untouched -- unlike PUT /:id, which
