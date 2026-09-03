@@ -25,4 +25,9 @@ async function bulkMatch(details, { revealPhoneNumber = false, webhookUrl } = {}
   return data;
 }
 
-module.exports = { bulkMatch };
+async function enrichOrganization(domain) {
+  const { data } = await client().get('/organizations/enrich', { params: { domain } });
+  return data.organization;
+}
+
+module.exports = { bulkMatch, enrichOrganization };

@@ -125,4 +125,78 @@ router.post('/enrich-phones', async (req, res, next) => {
   }
 });
 
+// Backfills employee count, funding, and headcount growth for companies sourced via
+// Clay search -- Clay's search results never included these as output fields (they're
+// filter-only there), so this is the only source we have for the actual numbers.
+router.post('/enrich-companies', async (req, res, next) => {
+  try {
+    const { limit = 20, dry_run = true } = req.body;
+
+    const { rows: companies } = await pool.query(
+      `SELECT id, name, domain FROM companies
+       WHERE domain IS NOT NULL AND employee_count IS NULL
+       ORDER BY id
+       LIMIT $1`,
+      [limit]
+    );
+
+    const results = [];
+    for (const company of companies) {
+      let org;
+      try {
+        org = await apollo.enrichOrganization(company.domain);
+      } catch (err) {
+        results.push({ id: company.id, name: company.name, matched: false, error: err.response?.data?.message || err.message });
+        continue;
+      }
+      if (!org) {
+        results.push({ id: company.id, name: company.name, matched: false });
+        continue;
+      }
+
+      const latestFundingEvent = org.funding_events?.[0]; // most recent first, per Apollo's ordering
+      const growthRatio = org.organization_headcount_twelve_month_growth;
+
+      results.push({
+        id: company.id,
+        name: company.name,
+        matched: true,
+        employee_count: org.estimated_num_employees ?? null,
+        headcount_growth_pct: growthRatio != null ? Math.round(growthRatio * 1000) / 10 : null,
+        funding_stage: latestFundingEvent?.type || org.latest_funding_stage || null,
+        total_raised: org.total_funding ?? null,
+        tech_stack: org.current_technologies?.length
+          ? [...new Set(org.current_technologies.map((t) => t.name))].slice(0, 30)
+          : null,
+      });
+    }
+
+    if (dry_run) {
+      const matchedCount = results.filter((r) => r.matched).length;
+      return res.json({ dry_run: true, checked: companies.length, matched: matchedCount, results });
+    }
+
+    let updated = 0;
+    for (const result of results) {
+      if (!result.matched) continue;
+      await pool.query(
+        `UPDATE companies SET
+           employee_count = COALESCE($1, employee_count),
+           headcount_growth_pct = COALESCE($2, headcount_growth_pct),
+           funding_stage = COALESCE($3, funding_stage),
+           total_raised = COALESCE($4, total_raised),
+           tech_stack = COALESCE($5, tech_stack),
+           updated_at = NOW()
+         WHERE id = $6`,
+        [result.employee_count, result.headcount_growth_pct, result.funding_stage, result.total_raised, result.tech_stack, result.id]
+      );
+      updated += 1;
+    }
+
+    res.json({ dry_run: false, checked: companies.length, matched: updated, results });
+  } catch (err) {
+    next(err);
+  }
+});
+
 module.exports = router;
