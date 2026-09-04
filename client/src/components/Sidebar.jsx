@@ -11,6 +11,9 @@ const ICONS = {
   pipeline: (
     <path strokeLinecap="round" strokeLinejoin="round" d="M13 2L3 14h7l-1 8 10-12h-7l1-8z" />
   ),
+  logs: (
+    <path strokeLinecap="round" strokeLinejoin="round" d="M9 17V9M13 17v-5M17 17v-9M4 4h16v16H4V4z" />
+  ),
 };
 
 function Icon({ name }) {
@@ -25,6 +28,7 @@ const ITEMS = [
   { to: '/companies', label: 'Companies', icon: 'companies' },
   { to: '/prospects', label: 'Contacts', icon: 'contacts' },
   { to: '/pipeline', label: 'Pipeline', icon: 'pipeline' },
+  { to: '/logs', label: 'Logs', icon: 'logs' },
 ];
 
 export default function Sidebar() {

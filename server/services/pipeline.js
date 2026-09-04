@@ -5,6 +5,7 @@ const hubspot = require('./hubspot');
 const instantly = require('./instantly');
 const { computeScore } = require('./scoring');
 const { refreshHiringSignals } = require('./hiringSignal');
+const { logActivity } = require('./activityLog');
 
 // The validated Tier 1 sourcing query from the initial manual sweep -- kept as the
 // standing definition of what this pipeline sources. Employee count uses the exact
@@ -62,6 +63,13 @@ async function sourceNewCompanies(count) {
     const row = await clay.upsertCompanyFromClayResult(c);
     if (row) inserted += 1;
   }
+
+  if (inserted > 0) {
+    await logActivity({
+      source: 'clay', action: 'source_companies', count: inserted,
+      cost: page.period_quota ? { quota_used_to_date: page.period_quota.used, quota_remaining: page.period_quota.remaining } : null,
+    });
+  }
   return { fetched: page.data.length, inserted };
 }
 
@@ -103,6 +111,10 @@ async function enrichCompanies(limit) {
     );
     matched += 1;
   }
+
+  if (matched > 0) {
+    await logActivity({ source: 'apollo', action: 'enrich_companies', count: matched, cost: null });
+  }
   return { checked: companies.length, matched };
 }
 
@@ -113,10 +125,19 @@ async function fillMarketingHeadcount(limit) {
   );
 
   const maxCount = 10;
+  let lastQuota = null;
   for (const company of companies) {
     const query = `select from people where clay.filter_to_companies(("${clay.escapeQueryString(company.domain)}")) and experiences.any(is_current = true and job_title is_similar_to ("marketing"))`;
-    const { results: people } = await clay.searchAll(query, { pageSize: maxCount, maxResults: maxCount });
+    const { results: people, periodQuota } = await clay.searchAll(query, { pageSize: maxCount, maxResults: maxCount });
+    lastQuota = periodQuota || lastQuota;
     await pool.query('UPDATE companies SET marketing_headcount = $1, updated_at = NOW() WHERE id = $2', [people.length, company.id]);
+  }
+
+  if (companies.length > 0) {
+    await logActivity({
+      source: 'clay', action: 'marketing_headcount', count: companies.length,
+      cost: lastQuota ? { quota_used_to_date: lastQuota.used, quota_remaining: lastQuota.remaining } : null,
+    });
   }
   return { checked: companies.length };
 }
@@ -141,10 +162,12 @@ async function findContacts(limitCompanies) {
   const titleList = DEFAULT_BUYING_COMMITTEE_TITLES.map((t) => `"${clay.escapeQueryString(t)}"`).join(', ');
   const maxPerCompany = 2;
   let inserted = 0;
+  let lastQuota = null;
 
   for (const company of companies) {
     const query = `select from people where clay.filter_to_companies(("${clay.escapeQueryString(company.domain)}")) and experiences.any(is_current = true and job_title is_similar_to (${titleList}))`;
-    const { results: people } = await clay.searchAll(query, { pageSize: maxPerCompany, maxResults: maxPerCompany });
+    const { results: people, periodQuota } = await clay.searchAll(query, { pageSize: maxPerCompany, maxResults: maxPerCompany });
+    lastQuota = periodQuota || lastQuota;
 
     for (const person of people) {
       const experience = person.matched_experiences?.[0];
@@ -155,6 +178,13 @@ async function findContacts(limitCompanies) {
       );
       inserted += 1;
     }
+  }
+
+  if (inserted > 0) {
+    await logActivity({
+      source: 'clay', action: 'find_contacts', count: inserted,
+      cost: lastQuota ? { quota_used_to_date: lastQuota.used, quota_remaining: lastQuota.remaining } : null,
+    });
   }
   return { companies_checked: companies.length, inserted };
 }
@@ -172,9 +202,11 @@ async function enrichContactEmails(limit) {
   );
 
   let matched = 0;
+  let creditsConsumed = 0;
   for (let i = 0; i < contacts.length; i += 10) {
     const batch = contacts.slice(i, i + 10);
     const response = await apollo.bulkMatch(batch.map((c) => ({ name: c.name, domain: c.domain })));
+    creditsConsumed += response.credits_consumed || 0;
 
     for (let idx = 0; idx < batch.length; idx += 1) {
       const match = response.matches[idx];
@@ -185,6 +217,10 @@ async function enrichContactEmails(limit) {
       );
       matched += 1;
     }
+  }
+
+  if (contacts.length > 0) {
+    await logActivity({ source: 'apollo', action: 'enrich_emails', count: matched, cost: { credits_consumed: creditsConsumed } });
   }
   return { checked: contacts.length, matched };
 }
@@ -205,9 +241,11 @@ async function requestContactPhones(limit) {
   );
 
   let requested = 0;
+  let creditsConsumed = 0;
   for (let i = 0; i < contacts.length; i += 10) {
     const batch = contacts.slice(i, i + 10);
     const response = await apollo.bulkMatch(batch.map((c) => ({ name: c.name, domain: c.domain })), { revealPhoneNumber: true, webhookUrl });
+    creditsConsumed += response.credits_consumed || 0;
 
     for (let idx = 0; idx < batch.length; idx += 1) {
       const match = response.matches[idx];
@@ -215,6 +253,10 @@ async function requestContactPhones(limit) {
       await pool.query('UPDATE prospects SET apollo_person_id = $1, updated_at = NOW() WHERE id = $2', [match.id, batch[idx].id]);
       requested += 1;
     }
+  }
+
+  if (contacts.length > 0) {
+    await logActivity({ source: 'apollo', action: 'request_phones', count: requested, cost: { credits_consumed: creditsConsumed } });
   }
   return { checked: contacts.length, requested }; // phone numbers land later via webhook
 }
@@ -273,6 +315,12 @@ async function syncToHubspot(limitCompanies, limitContacts) {
     contactsSynced += 1;
   }
 
+  if (companiesSynced > 0 || contactsSynced > 0) {
+    await logActivity({
+      source: 'hubspot', action: 'sync', count: companiesSynced + contactsSynced, cost: null,
+      detail: { companies_synced: companiesSynced, contacts_synced: contactsSynced },
+    });
+  }
   return { companies_synced: companiesSynced, contacts_synced: contactsSynced };
 }
 
@@ -321,6 +369,10 @@ async function syncToInstantly(limit) {
     const created = await instantly.upsertLead(campaignId, lead);
     await pool.query('UPDATE prospects SET instantly_id = $1, updated_at = NOW() WHERE id = $2', [created.id, c.id]);
     synced += 1;
+  }
+
+  if (synced > 0) {
+    await logActivity({ source: 'instantly', action: 'sync', count: synced, cost: null });
   }
   return { synced };
 }

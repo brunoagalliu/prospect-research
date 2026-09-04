@@ -109,6 +109,24 @@ async function init() {
       error       TEXT
     );
     CREATE INDEX IF NOT EXISTS pipeline_runs_started_at ON pipeline_runs(started_at DESC);
+
+    -- One row per import/enrichment/sync event (Clay search, Apollo enrichment, HubSpot
+    -- or Instantly sync, and eventually proposal-page generation) -- more granular than
+    -- pipeline_runs, built specifically to answer "how many, and what did it cost."
+    -- cost is null when the provider doesn't report one (HubSpot/Instantly have no
+    -- credit concept; Apollo's org-enrich endpoint doesn't return a cost) -- never
+    -- fabricated.
+    CREATE TABLE IF NOT EXISTS activity_log (
+      id         SERIAL PRIMARY KEY,
+      source     TEXT NOT NULL,
+      action     TEXT NOT NULL,
+      count      INTEGER,
+      cost       JSONB,
+      detail     JSONB,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS activity_log_created_at ON activity_log(created_at DESC);
+    CREATE INDEX IF NOT EXISTS activity_log_source     ON activity_log(source);
   `);
 
   // One-time bootstrap: if no accounts exist yet and ADMIN_EMAIL/ADMIN_PASSWORD are set,

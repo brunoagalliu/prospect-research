@@ -16,6 +16,7 @@ const apolloWebhookRouter = require('./routes/apolloWebhook');
 const hubspotRouter = require('./routes/hubspot');
 const instantlyRouter = require('./routes/instantly');
 const pipelineRouter = require('./routes/pipeline');
+const activityRouter = require('./routes/activity');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -58,6 +59,7 @@ app.use('/api/apollo', apolloRouter);
 app.use('/api/hubspot', hubspotRouter);
 app.use('/api/instantly', instantlyRouter);
 app.use('/api/pipeline', pipelineRouter);
+app.use('/api/activity', activityRouter);
 
 // Serve React build in production
 if (process.env.NODE_ENV === 'production') {

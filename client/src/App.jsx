@@ -6,6 +6,7 @@ import Prospects from './pages/Prospects';
 import Companies from './pages/Companies';
 import CompanyDetail from './pages/CompanyDetail';
 import Pipeline from './pages/Pipeline';
+import Logs from './pages/Logs';
 
 function RequireAuth() {
   if (!getToken()) return <Navigate to="/login" replace />;
@@ -29,6 +30,7 @@ export default function App() {
         <Route path="/companies/:id" element={<CompanyDetail />} />
         <Route path="/prospects" element={<Prospects />} />
         <Route path="/pipeline" element={<Pipeline />} />
+        <Route path="/logs" element={<Logs />} />
       </Route>
     </Routes>
   );
