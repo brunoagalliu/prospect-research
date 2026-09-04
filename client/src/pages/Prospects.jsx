@@ -84,6 +84,7 @@ export default function Prospects() {
                   ['title', 'Title'],
                   ['company_tier', 'Company tier'],
                   ['hiring_signal', 'Hiring signal'],
+                  ['linkedin_url', 'LinkedIn'],
                   ['status', 'Status'],
                   ['source', 'Source'],
                 ].map(([key, label]) => (
@@ -112,6 +113,15 @@ export default function Prospects() {
                       </span>
                     ) : (
                       'No'
+                    )}
+                  </td>
+                  <td className="px-4 py-2">
+                    {p.linkedin_url ? (
+                      <a href={p.linkedin_url} target="_blank" rel="noreferrer" className="text-brand-600 hover:underline">
+                        View ↗
+                      </a>
+                    ) : (
+                      '—'
                     )}
                   </td>
                   <td className="px-4 py-2">{p.status}</td>

@@ -49,16 +49,28 @@ export default function CompanyDetail() {
           <p className="text-sm text-gray-500">
             {[company.industry, company.location].filter(Boolean).join(' · ')}
           </p>
-          {company.domain && (
-            <a
-              href={`https://${company.domain}`}
-              target="_blank"
-              rel="noreferrer"
-              className="text-sm text-brand-600 hover:underline"
-            >
-              {company.domain}
-            </a>
-          )}
+          <div className="flex gap-3">
+            {company.domain && (
+              <a
+                href={`https://${company.domain}`}
+                target="_blank"
+                rel="noreferrer"
+                className="text-sm text-brand-600 hover:underline"
+              >
+                {company.domain}
+              </a>
+            )}
+            {company.linkedin_url && (
+              <a
+                href={company.linkedin_url}
+                target="_blank"
+                rel="noreferrer"
+                className="text-sm text-brand-600 hover:underline"
+              >
+                LinkedIn ↗
+              </a>
+            )}
+          </div>
         </div>
         <select
           className="input max-w-[160px]"
@@ -134,6 +146,7 @@ export default function CompanyDetail() {
                 <th className="py-2 pr-4">Title</th>
                 <th className="py-2 pr-4">Email</th>
                 <th className="py-2 pr-4">Phone</th>
+                <th className="py-2 pr-4">LinkedIn</th>
                 <th className="py-2 pr-4">Status</th>
               </tr>
             </thead>
@@ -144,6 +157,15 @@ export default function CompanyDetail() {
                   <td className="py-2 pr-4">{p.title || '—'}</td>
                   <td className="py-2 pr-4">{p.email || '—'}</td>
                   <td className="py-2 pr-4">{p.phone || '—'}</td>
+                  <td className="py-2 pr-4">
+                    {p.linkedin_url ? (
+                      <a href={p.linkedin_url} target="_blank" rel="noreferrer" className="text-brand-600 hover:underline">
+                        View ↗
+                      </a>
+                    ) : (
+                      '—'
+                    )}
+                  </td>
                   <td className="py-2 pr-4">{p.status}</td>
                 </tr>
               ))}

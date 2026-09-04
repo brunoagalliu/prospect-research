@@ -10,6 +10,7 @@ const COLUMNS = [
   ['marketing_headcount', 'Marketing HC'],
   ['has_ops_hire', 'Ops hire?'],
   ['hiring_signal', 'Hiring signal'],
+  ['linkedin_url', 'LinkedIn'],
   ['score', 'Score'],
   ['status', 'Status'],
   ['source', 'Source'],
@@ -43,6 +44,21 @@ export default function CompanyTable({ companies }) {
               <td className="px-4 py-2">{c.marketing_headcount ?? '—'}</td>
               <td className="px-4 py-2">{c.has_ops_hire ? 'Yes' : 'No'}</td>
               <td className="px-4 py-2">{c.hiring_signal ? 'Yes' : 'No'}</td>
+              <td className="px-4 py-2">
+                {c.linkedin_url ? (
+                  <a
+                    href={c.linkedin_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-brand-600 hover:underline"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    View ↗
+                  </a>
+                ) : (
+                  '—'
+                )}
+              </td>
               <td className="px-4 py-2">{c.score ?? '—'}</td>
               <td className="px-4 py-2">{c.status}</td>
               <td className="px-4 py-2">{c.source || '—'}</td>
