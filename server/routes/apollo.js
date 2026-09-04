@@ -5,8 +5,11 @@ const router = express.Router();
 
 const BATCH_SIZE = 10; // Apollo bulk_match's per-request cap
 
-// Looks up work email (and backfills linkedin_url) for prospects that have a linked
-// company with a known domain but no email yet. Costs Apollo credits per real match
+// Looks up work email and LinkedIn URL for prospects that have a linked company with a
+// known domain but no email yet. Apollo returns linkedin_url as a top-level field on the
+// matched person independent of whether an email was found -- a person can match with
+// email_status "unavailable" but still carry a real linkedin_url, so "matched" here means
+// "got email OR linkedin_url", not just email. Costs Apollo credits per real person match
 // (misses are free) -- default dry_run previews without spending credits or writing.
 router.post('/enrich-contacts', async (req, res, next) => {
   try {
@@ -16,7 +19,7 @@ router.post('/enrich-contacts', async (req, res, next) => {
       `SELECT p.id, p.name, p.title, p.company_id, c.domain
        FROM prospects p
        JOIN companies c ON c.id = p.company_id
-       WHERE p.email IS NULL AND c.domain IS NOT NULL
+       WHERE (p.email IS NULL OR p.linkedin_url IS NULL) AND c.domain IS NOT NULL
        ORDER BY p.id
        LIMIT $1`,
       [limit]
@@ -37,7 +40,7 @@ router.post('/enrich-contacts', async (req, res, next) => {
           id: contact.id,
           name: contact.name,
           company_id: contact.company_id,
-          matched: Boolean(match?.email),
+          matched: Boolean(match?.email || match?.linkedin_url),
           email: match?.email || null,
           email_status: match?.email_status || null,
           linkedin_url: match?.linkedin_url || null,
@@ -55,7 +58,7 @@ router.post('/enrich-contacts', async (req, res, next) => {
     for (const result of results) {
       if (!result.matched) continue;
       await pool.query(
-        `UPDATE prospects SET email = $1, linkedin_url = COALESCE(linkedin_url, $2), apollo_person_id = COALESCE($3, apollo_person_id), updated_at = NOW() WHERE id = $4`,
+        `UPDATE prospects SET email = COALESCE($1, email), linkedin_url = COALESCE(linkedin_url, $2), apollo_person_id = COALESCE($3, apollo_person_id), updated_at = NOW() WHERE id = $4`,
         [result.email, result.linkedin_url, result.apollo_person_id, result.id]
       );
       updated += 1;

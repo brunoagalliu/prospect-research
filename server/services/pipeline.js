@@ -158,11 +158,13 @@ async function findContacts(limitCompanies) {
   return { companies_checked: companies.length, inserted };
 }
 
+// "matched" means got email OR linkedin_url -- Apollo returns linkedin_url on the person
+// independent of email_status, so a person can match with no email but a real LinkedIn.
 async function enrichContactEmails(limit) {
   const { rows: contacts } = await pool.query(
     `SELECT p.id, p.name, c.domain FROM prospects p
      JOIN companies c ON c.id = p.company_id
-     WHERE p.email IS NULL AND c.domain IS NOT NULL
+     WHERE (p.email IS NULL OR p.linkedin_url IS NULL) AND c.domain IS NOT NULL
      ORDER BY p.id
      LIMIT $1`,
     [limit]
@@ -175,10 +177,10 @@ async function enrichContactEmails(limit) {
 
     for (let idx = 0; idx < batch.length; idx += 1) {
       const match = response.matches[idx];
-      if (!match?.email) continue;
+      if (!match?.email && !match?.linkedin_url) continue;
       await pool.query(
-        `UPDATE prospects SET email = $1, linkedin_url = COALESCE(linkedin_url, $2), apollo_person_id = COALESCE($3, apollo_person_id), updated_at = NOW() WHERE id = $4`,
-        [match.email, match.linkedin_url || null, match.id || null, batch[idx].id]
+        `UPDATE prospects SET email = COALESCE($1, email), linkedin_url = COALESCE(linkedin_url, $2), apollo_person_id = COALESCE($3, apollo_person_id), updated_at = NOW() WHERE id = $4`,
+        [match.email || null, match.linkedin_url || null, match.id || null, batch[idx].id]
       );
       matched += 1;
     }
