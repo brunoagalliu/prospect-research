@@ -25,9 +25,14 @@ export default function Login() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center">
-      <form onSubmit={handleSubmit} className="w-full max-w-sm space-y-4 rounded-lg bg-white p-8 shadow-sm">
-        <h1 className="text-lg font-semibold">Prospect Research</h1>
+    <div className="flex min-h-screen items-center justify-center bg-ink-50">
+      <form onSubmit={handleSubmit} className="card w-full max-w-sm space-y-5 p-8">
+        <div>
+          <span className="font-display text-lg font-bold tracking-tight text-ink-900">
+            Prospect<span className="text-brand-500">.</span>
+          </span>
+          <p className="mt-1 text-sm text-ink-500">Sign in to continue</p>
+        </div>
         <div>
           <label className="label" htmlFor="email">Email</label>
           <input
@@ -49,7 +54,7 @@ export default function Login() {
             onChange={(e) => setPassword(e.target.value)}
           />
         </div>
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p className="text-sm text-signal-dark">{error}</p>}
         <button type="submit" className="btn-primary w-full" disabled={loading}>
           {loading ? 'Signing in…' : 'Sign in'}
         </button>
