@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { api, setToken } from '../api';
 
 export default function Login() {
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -13,7 +14,7 @@ export default function Login() {
     setError('');
     setLoading(true);
     try {
-      const { token } = await api('/auth/login', { method: 'POST', body: { password } });
+      const { token } = await api('/auth/login', { method: 'POST', body: { email, password } });
       setToken(token);
       navigate('/');
     } catch (err) {
@@ -28,6 +29,17 @@ export default function Login() {
       <form onSubmit={handleSubmit} className="w-full max-w-sm space-y-4 rounded-lg bg-white p-8 shadow-sm">
         <h1 className="text-lg font-semibold">Prospect Research</h1>
         <div>
+          <label className="label" htmlFor="email">Email</label>
+          <input
+            id="email"
+            type="email"
+            className="input"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            autoFocus
+          />
+        </div>
+        <div>
           <label className="label" htmlFor="password">Password</label>
           <input
             id="password"
@@ -35,7 +47,6 @@ export default function Login() {
             className="input"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            autoFocus
           />
         </div>
         {error && <p className="text-sm text-red-600">{error}</p>}

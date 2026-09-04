@@ -1,4 +1,5 @@
 const { Pool } = require('pg');
+const bcrypt = require('bcryptjs');
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -88,7 +89,40 @@ async function init() {
       key   TEXT PRIMARY KEY,
       value TEXT
     );
+
+    -- Real accounts, replacing the old single-shared-password login.
+    CREATE TABLE IF NOT EXISTS users (
+      id            SERIAL PRIMARY KEY,
+      email         TEXT NOT NULL UNIQUE,
+      password_hash TEXT NOT NULL,
+      created_at    TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+
+    -- One row per pipeline cycle (scheduled or manually triggered via POST
+    -- /api/pipeline/run), so runs are visible in the dashboard instead of only in
+    -- Railway's server logs.
+    CREATE TABLE IF NOT EXISTS pipeline_runs (
+      id          SERIAL PRIMARY KEY,
+      started_at  TIMESTAMP NOT NULL,
+      finished_at TIMESTAMP,
+      summary     JSONB,
+      error       TEXT
+    );
+    CREATE INDEX IF NOT EXISTS pipeline_runs_started_at ON pipeline_runs(started_at DESC);
   `);
+
+  // One-time bootstrap: if no accounts exist yet and ADMIN_EMAIL/ADMIN_PASSWORD are set,
+  // create the first (and typically only) account. Safe to leave the env vars set
+  // permanently -- this only ever fires while the users table is empty.
+  const { rows: existing } = await pool.query('SELECT COUNT(*)::int AS count FROM users');
+  if (existing[0].count === 0 && process.env.ADMIN_EMAIL && process.env.ADMIN_PASSWORD) {
+    const passwordHash = await bcrypt.hash(process.env.ADMIN_PASSWORD, 10);
+    await pool.query(
+      'INSERT INTO users (email, password_hash) VALUES ($1, $2) ON CONFLICT (email) DO NOTHING',
+      [process.env.ADMIN_EMAIL.toLowerCase(), passwordHash]
+    );
+    console.log(`Bootstrapped admin account for ${process.env.ADMIN_EMAIL}`);
+  }
 }
 
 module.exports = { pool, init };

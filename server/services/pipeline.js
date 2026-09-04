@@ -327,8 +327,15 @@ async function syncToInstantly(limit) {
 
 // One daily cycle through the whole pipeline. Each stage is capped and independently
 // wrapped so a failure in one (e.g. HubSpot down) doesn't block the others from running.
+// Recorded to pipeline_runs so it's visible in the dashboard, not just server logs.
 async function runDailyPipeline({ newCompaniesPerRun = 10 } = {}) {
   const summary = {};
+  const startedAt = new Date();
+  const { rows: runRows } = await pool.query(
+    'INSERT INTO pipeline_runs (started_at) VALUES ($1) RETURNING id',
+    [startedAt]
+  );
+  const runId = runRows[0].id;
 
   async function stage(name, fn) {
     try {
@@ -338,16 +345,29 @@ async function runDailyPipeline({ newCompaniesPerRun = 10 } = {}) {
     }
   }
 
-  await stage('sourced', () => sourceNewCompanies(newCompaniesPerRun));
-  await stage('company_enrichment', () => enrichCompanies(15));
-  await stage('marketing_headcount', () => fillMarketingHeadcount(15));
-  await stage('hiring_signals', () => refreshHiringSignals());
-  await stage('scores', () => recomputeAllScores());
-  await stage('contacts_found', () => findContacts(15));
-  await stage('contact_emails', () => enrichContactEmails(20));
-  await stage('contact_phones', () => requestContactPhones(20));
-  await stage('hubspot_sync', () => syncToHubspot(20, 20));
-  await stage('instantly_sync', () => syncToInstantly(20));
+  try {
+    await stage('sourced', () => sourceNewCompanies(newCompaniesPerRun));
+    await stage('company_enrichment', () => enrichCompanies(15));
+    await stage('marketing_headcount', () => fillMarketingHeadcount(15));
+    await stage('hiring_signals', () => refreshHiringSignals());
+    await stage('scores', () => recomputeAllScores());
+    await stage('contacts_found', () => findContacts(15));
+    await stage('contact_emails', () => enrichContactEmails(20));
+    await stage('contact_phones', () => requestContactPhones(20));
+    await stage('hubspot_sync', () => syncToHubspot(20, 20));
+    await stage('instantly_sync', () => syncToInstantly(20));
+
+    await pool.query(
+      'UPDATE pipeline_runs SET finished_at = NOW(), summary = $1 WHERE id = $2',
+      [JSON.stringify(summary), runId]
+    );
+  } catch (err) {
+    await pool.query(
+      'UPDATE pipeline_runs SET finished_at = NOW(), summary = $1, error = $2 WHERE id = $3',
+      [JSON.stringify(summary), err.message, runId]
+    );
+    throw err;
+  }
 
   return summary;
 }
