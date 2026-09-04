@@ -21,7 +21,7 @@ export default function Sidebar() {
     }`;
 
   return (
-    <aside className="flex h-screen w-56 flex-none flex-col border-r bg-white">
+    <aside className="sticky top-0 flex h-screen w-56 flex-none flex-col border-r bg-white">
       <div className="px-4 py-5">
         <span className="text-sm font-semibold">Prospect Research</span>
       </div>
