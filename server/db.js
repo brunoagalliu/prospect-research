@@ -69,6 +69,9 @@ async function init() {
     -- Correlates Apollo's async phone-reveal webhook callback back to the right row.
     ALTER TABLE prospects ADD COLUMN IF NOT EXISTS apollo_person_id TEXT;
     ALTER TABLE prospects ADD COLUMN IF NOT EXISTS hubspot_id TEXT;
+    -- Tracks the synced Instantly lead so re-syncing is idempotent (paired with
+    -- skip_if_in_campaign on the Instantly side as a second safety net).
+    ALTER TABLE prospects ADD COLUMN IF NOT EXISTS instantly_id TEXT;
 
     CREATE INDEX IF NOT EXISTS prospects_status           ON prospects(status);
     CREATE INDEX IF NOT EXISTS prospects_company          ON prospects(company);

@@ -14,6 +14,7 @@ const clayRouter = require('./routes/clay');
 const apolloRouter = require('./routes/apollo');
 const apolloWebhookRouter = require('./routes/apolloWebhook');
 const hubspotRouter = require('./routes/hubspot');
+const instantlyRouter = require('./routes/instantly');
 const pipelineRouter = require('./routes/pipeline');
 
 const app = express();
@@ -55,6 +56,7 @@ app.use('/api/webhooks', webhooksRouter);
 app.use('/api/clay', clayRouter);
 app.use('/api/apollo', apolloRouter);
 app.use('/api/hubspot', hubspotRouter);
+app.use('/api/instantly', instantlyRouter);
 app.use('/api/pipeline', pipelineRouter);
 
 // Serve React build in production

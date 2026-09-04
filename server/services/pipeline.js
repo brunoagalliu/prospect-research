@@ -2,6 +2,7 @@ const { pool } = require('../db');
 const clay = require('./clay');
 const apollo = require('./apollo');
 const hubspot = require('./hubspot');
+const instantly = require('./instantly');
 const { computeScore } = require('./scoring');
 const { refreshHiringSignals } = require('./hiringSignal');
 
@@ -275,6 +276,55 @@ async function syncToHubspot(limitCompanies, limitContacts) {
   return { companies_synced: companiesSynced, contacts_synced: contactsSynced };
 }
 
+// Skips gracefully (not an error) until a campaign is configured via
+// POST /api/instantly/config -- there's nothing to sync into otherwise.
+async function syncToInstantly(limit) {
+  const { rows: stateRows } = await pool.query(`SELECT value FROM pipeline_state WHERE key = 'instantly_campaign_id'`);
+  const campaignId = stateRows[0]?.value || null;
+  if (!campaignId) return { skipped: 'no Instantly campaign configured yet' };
+
+  const { rows: contacts } = await pool.query(
+    `SELECT p.*, c.name AS company_name, c.website, c.tier, c.score, c.industry,
+            c.hiring_signal, c.hiring_signal_titles, c.marketing_headcount, c.funding_stage
+     FROM prospects p
+     LEFT JOIN companies c ON c.id = p.company_id
+     WHERE p.email IS NOT NULL AND p.instantly_id IS NULL
+     ORDER BY p.id
+     LIMIT $1`,
+    [limit]
+  );
+
+  let synced = 0;
+  for (const c of contacts) {
+    const [firstName, ...rest] = c.name.split(' ');
+    const lead = {
+      email: c.email,
+      first_name: firstName,
+      last_name: rest.join(' ') || undefined,
+      company_name: c.company_name || undefined,
+      website: c.website || undefined,
+      custom_variables: {
+        title: c.title || undefined,
+        phone: c.phone || undefined,
+        linkedin_url: c.linkedin_url || undefined,
+        company_tier: c.tier ?? undefined,
+        company_score: c.score ?? undefined,
+        company_industry: c.industry || undefined,
+        hiring_signal: c.hiring_signal ? c.hiring_signal_titles || 'true' : undefined,
+        marketing_headcount: c.marketing_headcount ?? undefined,
+        funding_stage: c.funding_stage || undefined,
+      },
+    };
+    Object.keys(lead.custom_variables).forEach((k) => lead.custom_variables[k] === undefined && delete lead.custom_variables[k]);
+    Object.keys(lead).forEach((k) => lead[k] === undefined && delete lead[k]);
+
+    const created = await instantly.upsertLead(campaignId, lead);
+    await pool.query('UPDATE prospects SET instantly_id = $1, updated_at = NOW() WHERE id = $2', [created.id, c.id]);
+    synced += 1;
+  }
+  return { synced };
+}
+
 // One daily cycle through the whole pipeline. Each stage is capped and independently
 // wrapped so a failure in one (e.g. HubSpot down) doesn't block the others from running.
 async function runDailyPipeline({ newCompaniesPerRun = 10 } = {}) {
@@ -297,6 +347,7 @@ async function runDailyPipeline({ newCompaniesPerRun = 10 } = {}) {
   await stage('contact_emails', () => enrichContactEmails(20));
   await stage('contact_phones', () => requestContactPhones(20));
   await stage('hubspot_sync', () => syncToHubspot(20, 20));
+  await stage('instantly_sync', () => syncToInstantly(20));
 
   return summary;
 }
